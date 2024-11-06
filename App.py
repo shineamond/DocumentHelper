@@ -2,6 +2,8 @@ import os
 import pdfplumber
 import logging
 import re
+import streamlit as st
+from st_copy_to_clipboard import st_copy_to_clipboard
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
@@ -59,17 +61,18 @@ class QuizGenerator:
 
     @staticmethod
     def create_chunks(text):
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000,
-                                                       chunk_overlap=200,
-                                                       length_function=len)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size = 1000,
+                                                       chunk_overlap = 200,
+                                                       length_function = len)
         chunks = text_splitter.split_text(text)
 
         return chunks
 
+
     def generate_quiz(self, vectorstore, num_questions):
-        qa = RetrievalQA.from_chain_type(llm=self.llm,
-                                         chain_type="stuff",
-                                         retriever=vectorstore.as_retriever())
+        qa = RetrievalQA.from_chain_type(llm = self.llm,
+                                         chain_type = "stuff",
+                                         retriever = vectorstore.as_retriever())
 
         prompt = f"""Dựa trên nội dung văn bản được cung cấp, hãy tạo {num_questions} câu hỏi trắc nghiệm.
         Mỗi câu hỏi phải có 4 lựa chọn và chỉ có 1 đáp án đúng.
@@ -86,13 +89,14 @@ class QuizGenerator:
         quiz = qa.invoke(prompt)
         return quiz
 
-    def process_and_generate(self, file_path, num_questions=10):
+
+    def process_and_generate(self, file_path, num_questions = 10):
         try:
             text = self.extract_text_from_pdf(file_path)
 
             chunks = self.create_chunks(text)
 
-            vectorstore = FAISS.from_texts(texts=chunks, embedding=self.embeddings)
+            vectorstore = FAISS.from_texts(texts = chunks, embedding = self.embeddings)
 
             quiz = self.generate_quiz(vectorstore, num_questions)
 
@@ -103,9 +107,41 @@ class QuizGenerator:
 
 
 def main():
-    quiz_generator = QuizGenerator("GROQ_API_KEY")
-    quiz = quiz_generator.process_and_generate("./data/04.pdf")
-    print(quiz)
+    st.set_page_config(page_title = "Quiz Generator", layout = "wide")
+    st.title("Quiz Generator")
+
+    with st.sidebar:
+        st.header("⚙️ Cấu hình")
+        groq_api_key = st.text_input("Nhập Groq API Key: ", type = "password")
+
+        st.markdown("---")
+
+    if not groq_api_key:
+        st.warning("⚠️ Vui lòng nhập Groq API key để bắt đầu.")
+        return
+
+    uploaded_file = st.file_uploader("📁 Upload PDF file: ", type = "pdf")
+
+    if uploaded_file:
+        num_questions = st.slider("Số lượng câu hỏi: ", min_value = 5, max_value = 30, value = 5)
+
+        if st.button("📃 Tạo Quiz"):
+            with st.spinner("⏳ Đang xử lý. Vui lòng chờ..."):
+                try:
+                    quiz_generator = QuizGenerator(groq_api_key)
+                    quiz = quiz_generator.process_and_generate(uploaded_file, num_questions)
+                    st.session_state['generated_quiz'] = quiz
+
+                except Exception as e:
+                    st.error(f"Đã xảy ra lỗi: {str(e)}")
+
+    if 'generated_quiz' in st.session_state:
+        st.subheader("Quiz được tạo: ")
+        st.text_area("", value = st.session_state['generated_quiz'], height = 400)
+
+        # if st.button("📋 Sao chép Quiz"):
+        st.toast("Đã sao chép Quiz vào bộ nhớ tạm!")
+        st_copy_to_clipboard(st.session_state['generated_quiz'], "📋 Sao chép Quiz", "📋 Đã sao chép!")
 
 
 main()
