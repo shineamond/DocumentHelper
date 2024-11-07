@@ -1,7 +1,5 @@
-import os
-import pdfplumber
 import logging
-import re
+import os
 import streamlit as st
 from st_copy_to_clipboard import st_copy_to_clipboard
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -9,6 +7,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
 from langchain_community.vectorstores import FAISS
+from TextExtractor import extract_text
 
 
 class QuizGenerator:
@@ -17,47 +16,6 @@ class QuizGenerator:
         self.embeddings = HuggingFaceEmbeddings(model_name = "sentence-transformers/all-MiniLM-L6-v2")
         self.llm = ChatGroq(temperature = 0.7, model_name = "llama3-70b-8192")
 
-    @staticmethod
-    def extract_text_from_pdf(pdf_path):
-        sensitive_info_patterns = [
-            r'\b\d{9,12}\b',
-            r'\b\d{10}\b',
-            r'\b[\w\.-]+@[\w\.-]+\.\w+\b'
-        ]
-        sensitive_info_patterns = [re.compile(pattern) for pattern in sensitive_info_patterns]
-
-        bullet_patterns = [
-            r'^\s*[\u2022\u25E6\u26AB]\s+',
-            r'^\s*[-•∙◦◎⦿⦾]\s+'
-        ]
-        bullet_patterns = [re.compile(pattern, re.MULTILINE) for pattern in bullet_patterns]
-
-        text = ""
-        try:
-            with pdfplumber.open(pdf_path) as pdf:
-                for page in pdf.pages:
-                    try:
-                        filtered_text = page.extract_text() or ""
-
-                        for pattern in sensitive_info_patterns:
-                            filtered_text = pattern.sub('', filtered_text)
-
-                        for pattern in bullet_patterns:
-                            filtered_text = pattern.sub('', filtered_text)
-
-                        text += filtered_text
-
-                    except Exception as e:
-                        logging.warning(f"Không thể đọc trang PDF: {str(e)}")
-                        continue
-
-        except Exception as e:
-            raise Exception(f"Lỗi khi đọc file PDF: {str(e)}")
-
-        if not text.strip():
-            raise Exception("Không trích xuất được văn bản từ file PDF")
-
-        return text
 
     @staticmethod
     def create_chunks(text):
@@ -92,7 +50,7 @@ class QuizGenerator:
 
     def process_and_generate(self, file_path, num_questions = 10):
         try:
-            text = self.extract_text_from_pdf(file_path)
+            text = extract_text(file_path)
 
             chunks = self.create_chunks(text)
 
@@ -120,7 +78,7 @@ def main():
         st.warning("⚠️ Vui lòng nhập Groq API key để bắt đầu.")
         return
 
-    uploaded_file = st.file_uploader("📁 Upload PDF file: ", type = "pdf")
+    uploaded_file = st.file_uploader("📁 Upload PDF file: ", type = ["pdf", "pptx", "ppt", "docx"])
 
     if uploaded_file:
         num_questions = st.slider("Số lượng câu hỏi: ", min_value = 5, max_value = 30, value = 5)
@@ -139,8 +97,6 @@ def main():
         st.subheader("Quiz được tạo: ")
         st.text_area("", value = st.session_state['generated_quiz'], height = 400)
 
-        # if st.button("📋 Sao chép Quiz"):
-        st.toast("Đã sao chép Quiz vào bộ nhớ tạm!")
         st_copy_to_clipboard(st.session_state['generated_quiz'], "📋 Sao chép Quiz", "📋 Đã sao chép!")
 
 
