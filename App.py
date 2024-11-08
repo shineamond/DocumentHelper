@@ -34,7 +34,7 @@ class DocumentHelper:
             self.vectorstore = FAISS.from_texts(texts = chunks, embedding = self.embeddings)
 
         except Exception as e:
-            raise Exception(f"Đã xảy ra lỗi trong quá trình xử lý file: {str(e)}")
+            raise Exception({str(e)})
 
 
     def generate_quiz(self, num_questions):
@@ -89,7 +89,7 @@ def show_quiz_tab():
 
     if st.session_state['generated_quiz']:
         st.text_area("Quiz đã tạo:", value = st.session_state['generated_quiz'], height = 500)
-        st_copy_to_clipboard(st.session_state['generated_quiz'], "📋 Sao chép Quiz", "📋 Đã sao chép!")
+        st_copy_to_clipboard(st.session_state['generated_quiz'], "📋 Sao chép quiz", "📋 Đã sao chép!")
 
 
 def show_chat_tab():
@@ -117,8 +117,8 @@ def show_chat_tab():
 
 
 def main():
-    st.set_page_config(page_title = "Quiz Generator", layout = "wide")
-    st.title("Quiz Generator")
+    st.set_page_config(page_title = "Document Helper", layout = "wide")
+    st.title("Document Helper")
 
     with st.sidebar:
         st.header("⚙️ Cấu hình")
